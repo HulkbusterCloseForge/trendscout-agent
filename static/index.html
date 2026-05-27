@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TrendScout Agent</title>
+  <style>
+    :root { color-scheme: dark; --bg:#09090b; --panel:#141417; --muted:#a1a1aa; --line:#27272a; --accent:#10b981; --danger:#ef4444; --warn:#f59e0b; }
+    * { box-sizing: border-box; } body { margin:0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; background: radial-gradient(circle at top right, #06332655, transparent 36%), var(--bg); color:#f4f4f5; }
+    header { padding:28px 32px 14px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:20px; align-items:center; }
+    h1 { margin:0; font-size:32px; letter-spacing:-.04em; } p { color:var(--muted); line-height:1.5; } .wrap { max-width:1280px; margin:0 auto; padding:24px 32px 60px; }
+    .grid { display:grid; grid-template-columns: 1.1fr .9fr; gap:18px; } @media (max-width: 980px){ .grid{ grid-template-columns:1fr; } }
+    .panel { background: color-mix(in srgb, var(--panel) 92%, transparent); border:1px solid var(--line); border-radius:18px; padding:20px; box-shadow:0 20px 60px #0004; }
+    label { display:block; font-size:12px; color:#d4d4d8; margin:14px 0 6px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+    input, textarea, select { width:100%; background:#09090b; border:1px solid #303036; color:#fff; border-radius:12px; padding:11px 12px; font:inherit; }
+    textarea { min-height:84px; resize:vertical; } .row { display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; } .row3 { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
+    button { border:0; border-radius:12px; padding:11px 14px; color:#04130e; background:var(--accent); font-weight:800; cursor:pointer; } button.secondary { background:#27272a; color:#fff; } button.warn { background:var(--warn); } button.danger { background:var(--danger); color:#fff; }
+    .buttons { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; } .pill { display:inline-flex; align-items:center; gap:8px; padding:5px 10px; border:1px solid #065f46; color:#6ee7b7; background:#064e3b55; border-radius:999px; font-size:12px; font-weight:800; }
+    .muted { color:var(--muted); } .small { font-size:12px; } .history { display:grid; gap:10px; max-height:640px; overflow:auto; } .card { border:1px solid var(--line); background:#0d0d10; border-radius:14px; padding:14px; }
+    .status-completed { color:#86efac; } .status-failed { color:#fca5a5; } .status-running { color:#93c5fd; } .ok { color:#86efac; } .bad { color:#fca5a5; } code { color:#6ee7b7; } a { color:#6ee7b7; }
+    .sources { background:#09090b; border:1px dashed #3f3f46; border-radius:12px; padding:12px; margin-top:10px; } .steps{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:12px 0}.step{border:1px solid var(--line);border-radius:12px;padding:10px;background:#0d0d10;text-align:center;font-size:12px}.step.active{border-color:#10b981;color:#86efac;background:#06332655}.hero{background:linear-gradient(135deg,#064e3b66,#111827);border:1px solid #065f46;border-radius:18px;padding:16px;margin-bottom:14px}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric{background:#09090b;border:1px solid var(--line);border-radius:12px;padding:12px}.metric b{font-size:22px}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="pill">NVIDIA Hackathon MVP</div>
+      <h1>TrendScout Agent</h1>
+      <p>Scheduled interest scanner → scraped clips only → beat-matched video → Drive/Sheet delivery.</p>
+    </div>
+    <div id="runState" class="pill">Loading…</div>
+  </header>
+  <div class="wrap grid">
+    <section class="panel">
+      <div class="hero"><h2>Automation setup</h2><p class="small">Configure once. TrendScout scans, filters, beat-matches, and delivers. No auto-posting. No generation models.</p><div class="steps"><div class="step" data-step="planning">Plan</div><div class="step" data-step="discovering">Scan</div><div class="step" data-step="filtering">Filter</div><div class="step" data-step="rendering">Edit</div><div class="step" data-step="delivering">Deliver</div></div></div>
+      <label>Run name</label><input id="run_name" />
+      <label>Interest prompt</label><textarea id="interest_prompt"></textarea>
+      <label>Negative prompt / exclusions</label><textarea id="exclusions"></textarea>
+      <div class="row3">
+        <div><label>Orientation</label><select id="orientation"><option value="vertical">Vertical 9:16</option><option value="horizontal">Horizontal 16:9</option></select></div>
+        <div><label>Interval minutes</label><input id="interval_minutes" type="number" min="1" /></div>
+        <div><label>Final duration sec</label><input id="final_duration_seconds" type="number" min="5" /></div>
+      </div>
+      <div class="row3">
+        <div><label>Target clips</label><input id="target_source_clips" type="number" min="1" /></div>
+        <div><label>Beat density</label><select id="beat_density"><option value="1">Every beat</option><option value="2">Every 2 beats</option><option value="4">Every 4 beats</option><option value="8">Every 8 beats</option></select></div>
+        <div><label>Strictness</label><select id="strictness"><option value="exact">Exact</option><option value="balanced">Balanced</option><option value="explore_adjacent">Explore adjacent</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>Sources</label><select id="sources" multiple size="3"><option value="local_folder">Local folder</option><option value="apify_tiktok">Apify TikTok</option><option value="youtube">YouTube/Shorts</option></select></div>
+        <div><label>Music source</label><select id="music_source"><option value="royalty_free">Royalty-free demo</option><option value="user_upload">User upload</option><option value="trend_metadata">Trend metadata</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>Region</label><input id="region" /></div>
+        <div><label>Dedupe mode</label><select id="dedupe_mode"><option value="both">Source URL + similar audio</option><option value="source_url">Source URL</option><option value="similar_audio">Similar audio</option></select></div>
+      </div>
+      <div class="row">
+        <div><label>Google Drive folder ID</label><input id="google_drive_folder_id" /></div>
+        <div><label>Google Sheet ID</label><input id="google_sheet_id" /></div>
+      </div>
+      <div class="row">
+        <div><label>Local inbox</label><input id="local_inbox" /></div>
+        <div><label>Audio path</label><input id="audio_path" placeholder="optional" /></div>
+      </div>
+      <div class="row">
+        <div><label>Apify actor</label><input id="apify_actor_id" placeholder="clockworks/tiktok-scraper" /></div>
+        <div><label>Apify results limit</label><input id="apify_results_limit" type="number" min="1" /></div>
+      </div>
+      <div class="buttons">
+        <button onclick="saveConfig()">Save config</button>
+        <button onclick="runNow()" class="warn">Run now</button>
+        <button onclick="start()">Start schedule</button>
+        <button onclick="stop()" class="danger">Stop</button>
+      </div>
+      <div class="sources"><strong>Local sources</strong><div id="sourcesBox" class="small muted">Loading…</div></div>
+      <div class="sources"><strong>Live Apify demo</strong><div id="apifyBox" class="small muted">Loading…</div><div class="buttons"><button class="warn" onclick="runLiveApifyDemo()">Run Live Apify Smoke</button><button class="secondary" onclick="refreshApify()">Refresh Apify Status</button></div><p class="small muted">Requires <code>APIFY_API_TOKEN</code> or <code>APIFY_TIKTOK_ITEMS_JSON</code>. Uses current interest/options.</p></div>
+      <div class="sources"><strong>Google OAuth</strong><div id="googleBox" class="small muted">Loading…</div><div class="buttons"><button class="secondary" onclick="connectGoogle()">Connect Google</button><button class="secondary" onclick="createGoogleResources()">Create Drive + Sheet</button><button class="secondary" onclick="refreshGoogle()">Refresh Google Status</button></div><p class="small muted">Requires <code>secrets/google-oauth-client.json</code>. Without Google, TrendScout uses local Drive/Sheet mocks.</p></div>
+    </section>
+    <aside class="panel">
+      <h2>Run history</h2><div class="metrics"><div class="metric"><b id="mRuns">0</b><br><span class="small muted">Runs</span></div><div class="metric"><b id="mAccepted">0</b><br><span class="small muted">Accepted</span></div><div class="metric"><b id="mRejected">0</b><br><span class="small muted">Rejected</span></div></div>
+      <div id="current" class="card small muted">No current run.</div><p class="small muted">Outputs use real Google Drive/Sheets when OAuth token is configured; otherwise local mocks are created under <code>output/</code>.</p>
+      <div id="history" class="history"></div>
+    </aside>
+  </div>
+<script>
+const fields = ['run_name','interest_prompt','exclusions','orientation','interval_minutes','final_duration_seconds','target_source_clips','beat_density','strictness','music_source','region','dedupe_mode','google_drive_folder_id','google_sheet_id','local_inbox','audio_path','apify_actor_id','apify_results_limit'];
+async function api(path, opts={}){ const r=await fetch(path,{headers:{'Content-Type':'application/json'},...opts}); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+function val(id){ const el=document.getElementById(id); return el.type==='number' ? Number(el.value) : el.value; }
+function setVal(id,v){ const el=document.getElementById(id); if(el) el.value = v ?? ''; }
+function selectedSources(){ return [...document.getElementById('sources').selectedOptions].map(o=>o.value); }
+function setSources(values){ [...document.getElementById('sources').options].forEach(o=>o.selected=(values||[]).includes(o.value)); }
+async function loadConfig(){ const c=await api('/api/config'); fields.forEach(f=>setVal(f,c[f])); setSources(c.sources); }
+async function saveConfig(){ const config={}; fields.forEach(f=>config[f]=val(f)); config.sources=selectedSources(); config.interval_minutes=Number(config.interval_minutes); config.final_duration_seconds=Number(config.final_duration_seconds); config.target_source_clips=Number(config.target_source_clips); config.beat_density=Number(config.beat_density); config.apify_results_limit=Number(config.apify_results_limit || 40); config.auto_widen_search=true; config.max_source_age_days=7; config.processing_mode='cloud'; await api('/api/config',{method:'POST',body:JSON.stringify({config})}); await refresh(); }
+async function runNow(){ await saveConfig(); await api('/api/run-now',{method:'POST'}); await refresh(); }
+async function start(){ await saveConfig(); await api('/api/start',{method:'POST'}); await refresh(); }
+async function stop(){ await api('/api/stop',{method:'POST'}); await refresh(); }
+function esc(x){ return String(x ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function outputHref(url){ if(!url) return ''; return url.startsWith('http') ? url : `file://${url}`; }
+function renderHistory(items){ const list=items||[]; document.getElementById("mRuns").textContent=list.length; document.getElementById("mAccepted").textContent=list.reduce((a,h)=>a+(h.accepted?.length||0),0); document.getElementById("mRejected").textContent=list.reduce((a,h)=>a+(h.rejected?.length||0),0); document.getElementById('history').innerHTML = list.map(h=>{
+  const accepted=(h.accepted||[]).slice(0,4).map(a=>`<li><b>${esc(a.metadata?.title||a.source_url)}</b><br><span class="muted">${esc(a.decision?.rationale||'accepted')}</span></li>`).join('');
+  const rejected=(h.rejected||[]).slice(0,4).map(r=>`<li><b>${esc(r.metadata?.title||r.source_url)}</b><br><span class="muted">${esc(r.reason||r.decision?.rationale||'rejected')}</span></li>`).join('');
+  return `<div class="card"><div><b>${esc(h.config?.run_name||h.run_id)}</b> <span class="status-${h.status}">${h.status}</span></div><div class="small muted">${esc(h.finished_at||'')}</div><div class="small">Accepted ${h.accepted?.length||0}, rejected ${h.rejected?.length||0}, beat density ${h.config?.beat_density||''}</div>${h.delivery?.drive_url?`<div class="small"><a href="${outputHref(h.delivery.drive_url)}" target="_blank">Output video</a> · <a href="${outputHref(h.delivery.sheet_url)}" target="_blank">Sheet/log</a></div>`:''}${h.error?`<div class="small status-failed">${esc(h.error)}</div>`:''}<details class="small"><summary>Rationale</summary><div class="row"><div><b>Accepted</b><ul>${accepted||'<li>None</li>'}</ul></div><div><b>Rejected</b><ul>${rejected||'<li>None</li>'}</ul></div></div></details></div>`;
+}).join('') || '<p class="muted">No runs yet.</p>'; }
+async function refreshGoogle(){ try{ const g=await api('/api/google/status'); const folderLink=g.drive_folder_url?`<br>Folder: <a href="${g.drive_folder_url}" target="_blank">${g.drive_folder_id}</a>`:''; const sheetLink=g.sheet_url?`<br>Sheet: <a href="${g.sheet_url}" target="_blank">${g.sheet_id}</a>`:''; document.getElementById('googleBox').innerHTML = `Client secret: <b class="${g.client_secret_configured?'ok':'bad'}">${g.client_secret_configured?'configured':'missing'}</b><br>Token: <b class="${g.token_configured?'ok':'bad'}">${g.token_configured?'configured':'missing'}</b><br>Delivery: <b class="${g.delivery_ready?'ok':'bad'}">${g.delivery_ready?'ready':'needs folder + sheet'}</b>${folderLink}${sheetLink}<br>Redirect URI: <code>${g.redirect_uri}</code><br><span class="muted">${g.token_path}</span>`; }catch(e){ document.getElementById('googleBox').textContent=e.message; } }
+async function refreshApify(){ try{ const a=await api('/api/apify/status'); document.getElementById('apifyBox').innerHTML = `Token: <b class="${a.token_configured||a.offline_dataset_configured?'ok':'bad'}">${a.token_configured?'configured':(a.offline_dataset_configured?'offline dataset':'missing')}</b><br>Actor: <code>${a.actor_id}</code><br>Limit: ${a.results_limit}`; }catch(e){ document.getElementById('apifyBox').textContent=e.message; } }
+async function connectGoogle(){ try{ const g=await api('/api/google/auth-url'); window.open(g.auth_url, '_blank'); }catch(e){ alert(e.message); } }
+async function createGoogleResources(){ try{ const r=await api('/api/google/create-resources',{method:'POST'}); setVal('google_drive_folder_id', r.folder_id); setVal('google_sheet_id', r.sheet_id); await saveConfig(); window.open(r.folder_url, '_blank'); await refreshGoogle(); }catch(e){ alert(e.message); } }
+async function runLiveApifyDemo(){ await saveConfig(); document.getElementById('current').textContent='Running live Apify smoke…'; try{ const r=await api('/api/demo/live-apify',{method:'POST'}); alert(`Live Apify smoke ${r.status}`); }catch(e){ alert(e.message); } await refresh(); }
+async function refresh(){ const s=await api('/api/status'); document.getElementById('runState').textContent = s.running ? `Schedule running${s.next_run_at ? ' · next ' + new Date(s.next_run_at).toLocaleTimeString() : ''}` : 'Stopped'; document.querySelectorAll(".step").forEach(el=>el.classList.toggle("active", !!s.current_run && el.dataset.step===s.current_run.status)); document.getElementById('current').textContent = s.current_run ? JSON.stringify(s.current_run,null,2) : 'No current run.'; renderHistory(s.history); const src=await api('/api/local-sources'); document.getElementById('sourcesBox').innerHTML = `<code>${src.folder}</code><br>` + (src.files||[]).map(f=>`${f.filename} (${Math.round(f.size_bytes/1024)} KB)`).join('<br>'); await refreshApify(); await refreshGoogle(); }
+loadConfig().then(refresh); setInterval(refresh, 5000);
+</script>
+</body>
+</html>

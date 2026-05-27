@@ -1,0 +1,12 @@
+services:
+  trendscout:
+    build: .
+    ports:
+      - "8765:8765"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+      - ./samples:/app/samples
+    restart: unless-stopped
