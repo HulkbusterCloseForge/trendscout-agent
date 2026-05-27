@@ -1,5 +1,9 @@
 # TrendScout Agent
 
+<p align="center">
+  <img src="docs/assets/trendscout-github-hero.png" alt="TrendScout Agent — long-running trend discovery and clip triage powered by NVIDIA Nemotron reasoning" width="100%">
+</p>
+
 Hands-off interest scanner that builds beat-matched videos from scraped source clips.
 
 Built for the NVIDIA Agent Challenge as a persistent, deployable long-agent: configure your interests once, run on a schedule, and receive finished beat-match videos in Google Drive with a Google Sheet audit trail. The core planning and relevance gates use NVIDIA Nemotron when configured, with deterministic local fallback for tests and offline demos.
