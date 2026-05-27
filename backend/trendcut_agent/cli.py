@@ -129,6 +129,7 @@ def run_niche(args: argparse.Namespace) -> Path:
         strictness=Strictness.EXPLORE_ADJACENT,
         target_source_clips=args.source_limit,
         apify_results_limit=args.source_limit * 3,
+        max_source_age_days=args.max_source_age_days,
         max_source_duration_seconds=args.max_source_duration,
         min_source_duration_seconds=2,
         local_inbox=args.local_inbox,
@@ -184,6 +185,7 @@ def main(argv: list[str] | None = None) -> None:
     run.add_argument("--source-limit", type=int, default=4)
     run.add_argument("--max-clips", type=int, default=6)
     run.add_argument("--max-source-duration", type=float, default=90)
+    run.add_argument("--max-source-age-days", type=int, default=1, help="Reject sources older than this many days. Default 1 for recent-news runs.")
     run.add_argument("--orientation", choices=["vertical", "horizontal", "landscape"], default="horizontal")
     run.add_argument("--exclusions", default="crypto gambling get rich quick scam")
     run.add_argument("--output-dir", default="")

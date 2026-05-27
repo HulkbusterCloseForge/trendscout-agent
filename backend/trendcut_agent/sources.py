@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -38,7 +39,75 @@ def apify_reject_reason(item: dict[str, Any], config: AutomationConfig) -> str |
         return f"source too long ({duration:.1f}s)"
     if item.get("isAd"):
         return "ad source rejected"
+    published_at = _published_datetime(item)
+    if _is_stale_source(config, published_at):
+        return f"source older than max_source_age_days={getattr(config, 'max_source_age_days', 7)}"
+    if _requires_known_publish_date(config) and published_at is None:
+        return "source publish date unavailable for strict recent-news run"
     return None
+
+
+def _parse_datetime(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    if isinstance(value, (int, float)):
+        # TikTok/YouTube timestamps are seconds; tolerate millisecond epochs too.
+        seconds = float(value) / 1000.0 if float(value) > 10_000_000_000 else float(value)
+        try:
+            return datetime.fromtimestamp(seconds, tz=timezone.utc)
+        except Exception:
+            return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if len(text) == 8 and text.isdigit():
+        try:
+            return datetime.strptime(text, "%Y%m%d").replace(tzinfo=timezone.utc)
+        except Exception:
+            return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _published_datetime(metadata: dict[str, Any]) -> datetime | None:
+    for key in (
+        "timestamp",
+        "release_timestamp",
+        "upload_date",
+        "publish_date",
+        "published_at",
+        "publishedAt",
+        "createTime",
+        "create_time",
+        "createTimeISO",
+        "taken_at",
+        "takenAt",
+    ):
+        dt = _parse_datetime(metadata.get(key))
+        if dt:
+            return dt
+    return None
+
+
+def _requires_known_publish_date(config: AutomationConfig) -> bool:
+    env = os.environ.get("TRENDSCOUT_REQUIRE_SOURCE_DATE", "").strip().lower()
+    if env in {"1", "true", "yes", "on"}:
+        return True
+    if env in {"0", "false", "no", "off"}:
+        return False
+    return int(getattr(config, "max_source_age_days", 7) or 7) <= 1
+
+
+def _is_stale_source(config: AutomationConfig, published_at: datetime | None) -> bool:
+    if not published_at:
+        return False
+    max_age_days = int(getattr(config, "max_source_age_days", 7) or 7)
+    if max_age_days <= 0:
+        return False
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+    return published_at < cutoff
 
 
 def extract_apify_tiktok_mp4(item: dict[str, Any]) -> str | None:
@@ -237,8 +306,14 @@ def _youtube_search_urls(plan: SearchPlan, config: AutomationConfig) -> list[dic
     if not shutil.which("yt-dlp"):
         return []
     query = os.environ.get("YOUTUBE_SEARCH_QUERY") or f"{plan.query} analysis explainer"
+    if int(getattr(config, "max_source_age_days", 7) or 7) <= 1 and "today" not in query.lower():
+        query = f"{query} today"
     limit = max(1, int(os.environ.get("YOUTUBE_SEARCH_LIMIT", str(config.target_source_clips * 3))))
     cmd = ["yt-dlp", f"ytsearch{limit}:{query}", "--dump-json", "--skip-download", "--no-playlist"]
+    max_age_days = int(getattr(config, "max_source_age_days", 7) or 7)
+    if max_age_days > 0:
+        date_after = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).strftime("%Y%m%d")
+        cmd.extend(["--dateafter", date_after])
     cookies = os.environ.get("YOUTUBE_COOKIES_FILE")
     if cookies:
         cmd[1:1] = ["--cookies", cookies]
@@ -270,6 +345,11 @@ def discover_youtube(config: AutomationConfig, plan: SearchPlan, work_dir: Path)
         if not url:
             continue
         duration = float(item.get("duration") or 0)
+        published_at = _published_datetime(item)
+        if _is_stale_source(config, published_at):
+            continue
+        if _requires_known_publish_date(config) and published_at is None:
+            continue
         if duration and duration < float(getattr(config, "min_source_duration_seconds", 1.0)):
             continue
         if duration and duration > float(getattr(config, "max_source_duration_seconds", 180.0)):
@@ -286,6 +366,10 @@ def discover_youtube(config: AutomationConfig, plan: SearchPlan, work_dir: Path)
         cookies = os.environ.get("YOUTUBE_COOKIES_FILE")
         if cookies:
             cmd[1:1] = ["--cookies", cookies]
+        max_age_days = int(getattr(config, "max_source_age_days", 7) or 7)
+        if max_age_days > 0:
+            date_after = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).strftime("%Y%m%d")
+            cmd.extend(["--dateafter", date_after])
         try:
             subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=240)
         except Exception:
@@ -305,6 +389,9 @@ def discover_youtube(config: AutomationConfig, plan: SearchPlan, work_dir: Path)
             "duration": duration or item.get("duration"),
             "view_count": item.get("view_count"),
             "like_count": item.get("like_count"),
+            "upload_date": item.get("upload_date"),
+            "timestamp": item.get("timestamp"),
+            "published_at": published_at.isoformat() if published_at else None,
             "search_query": plan.query,
             "source_platform": "youtube",
         }
